@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f3f4f6;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #1f2937;
+            font-size: 1.5rem;
+        }
+
+        .note-form {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .note-form input,
+        .note-form textarea {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+        }
+
+        .note-form textarea {
+            height: 150px;
+            resize: vertical;
+        }
+
+        .note-form button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .note-form button:hover {
+            background-color: #2563eb;
+        }
+
+        .notes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .note {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .note h3 {
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+            padding-right: 4rem;
+        }
+
+        .note p {
+            color: #4b5563;
+            white-space: pre-wrap;
+            margin-bottom: 1rem;
+        }
+
+        .note .actions {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .note button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem;
+            color: #6b7280;
+            transition: color 0.2s;
+        }
+
+        .note button:hover {
+            color: #1f2937;
+        }
+
+        .note .date {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #6b7280;
+            padding: 3rem;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 1rem;
+            }
+
+            .notes-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"/>
+                <path d="M15 3v6h6"/>
+            </svg>
+            <h1>Notes App</h1>
+        </header>
+
+        <form class="note-form" id="noteForm">
+            <input type="text" id="noteTitle" placeholder="Note title" required>
+            <textarea id="noteContent" placeholder="Write your note..." required></textarea>
+            <button type="submit">Add Note</button>
+        </form>
+
+        <div id="notesContainer" class="notes-grid"></div>
+    </div>
+
+    <script>
+        class NotesApp {
+            constructor() {
+                this.notes = JSON.parse(localStorage.getItem('notes')) || [];
+                this.noteForm = document.getElementById('noteForm');
+                this.notesContainer = document.getElementById('notesContainer');
+                this.noteTitle = document.getElementById('noteTitle');
+                this.noteContent = document.getElementById('noteContent');
+                this.editingId = null;
+
+                this.bindEvents();
+                this.render();
+            }
+
+            bindEvents() {
+                this.noteForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleSubmit();
+                });
+            }
+
+            handleSubmit() {
+                const title = this.noteTitle.value.trim();
+                const content = this.noteContent.value.trim();
+
+                if (this.editingId) {
+                    this.updateNote(this.editingId, title, content);
+                } else {
+                    this.addNote(title, content);
+                }
+
+                this.noteForm.reset();
+                this.editingId = null;
+                this.noteForm.querySelector('button').textContent = 'Add Note';
+            }
+
+            addNote(title, content) {
+                const note = {
+                    id: Date.now().toString(),
+                    title,
+                    content,
+                    createdAt: new Date().toISOString()
+                };
+
+                this.notes.unshift(note);
+                this.saveNotes();
+                this.render();
+            }
+
+            updateNote(id, title, content) {
+                this.notes = this.notes.map(note => 
+                    note.id === id 
+                        ? { ...note, title, content }
+                        : note
+                );
+                this.saveNotes();
+                this.render();
+            }
+
+            deleteNote(id) {
+                this.notes = this.notes.filter(note => note.id !== id);
+                this.saveNotes();
+                this.render();
+            }
+
+            editNote(id) {
+                const note = this.notes.find(note => note.id === id);
+                if (note) {
+                    this.noteTitle.value = note.title;
+                    this.noteContent.value = note.content;
+                    this.editingId = id;
+                    this.noteForm.querySelector('button').textContent = 'Update Note';
+                    this.noteForm.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+
+            saveNotes() {
+                localStorage.setItem('notes', JSON.stringify(this.notes));
+            }
+
+            formatDate(dateString) {
+                return new Date(dateString).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            }
+
+            render() {
+                if (this.notes.length === 0) {
+                    this.notesContainer.innerHTML = `
+                        <div class="empty-state">
+                            <p>No notes yet. Create your first note!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                this.notesContainer.innerHTML = this.notes.map(note => `
+                    <div class="note">
+                        <div class="actions">
+                            <button onclick="notesApp.editNote('${note.id}')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                                    <path d="m15 5 4 4"/>
+                                </svg>
+                            </button>
+                            <button onclick="notesApp.deleteNote('${note.id}')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 6h18"/>
+                                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <h3>${note.title}</h3>
+                        <p>${note.content}</p>
+                        <div class="date">Created on ${this.formatDate(note.createdAt)}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        const notesApp = new NotesApp();
+    </script>
+</body>
+</html>
